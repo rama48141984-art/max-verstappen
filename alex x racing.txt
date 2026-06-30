@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Alex Car Racing - F1 Edition</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #050510;
+            font-family: 'Montserrat', 'Segoe UI', Arial, sans-serif;
+            user-select: none;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Ambient Watermark Background Overlay */
+        #watermark-overlay {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) rotate(-15deg);
+            font-size: 8vw;
+            font-weight: 900;
+            color: rgba(255, 255, 255, 0.03);
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            pointer-events: none;
+            white-space: nowrap;
+            z-index: 2;
+            width: 100%;
+            text-align: center;
+        }
+
+        /* HUD Overlay */
+        #hud {
+            position: absolute;
+            top: env(safe-area-inset-top, 20px);
+            left: env(safe-area-inset-left, 20px);
+            z-index: 10;
+            color: #00ffcc;
+            font-size: 22px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 204, 0.6);
+            pointer-events: none;
+        }
+
+        #speedometer {
+            color: #ff0055;
+            text-shadow: 0 0 10px rgba(255, 0, 85, 0.6);
+            margin-top: 5px;
+            font-size: 16px;
+        }
+
+        /* Mobile Touch Controls Container */
+        #mobile-controls {
+            position: absolute;
+            bottom: max(30px, env(safe-area-inset-bottom));
+            left: 0;
+            width: 100vw;
+            display: flex;
+            justify-content: space-between;
+            padding: 0 40px;
+            box-sizing: border-box;
+            z-index: 15;
+            pointer-events: none;
+        }
+
+        .touch-btn {
+            width: 85px;
+            height: 85px;
+            background: rgba(11, 20, 44, 0.4);
+            border: 3px solid #00ffcc;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #00ffcc;
+            font-size: 36px;
+            font-weight: bold;
+            pointer-events: auto;
+            touch-action: none;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.3);
+            transition: background 0.1s;
+        }
+
+        .touch-btn:strong-active, .touch-btn:active {
+            background: rgba(0, 255, 204, 0.5);
+            box-shadow: 0 0 30px #00ffcc;
+        }
+
+        /* Intelligent display toggle for Mobile UI */
+        @media (hover: hover) and (pointer: fine) {
+            #mobile-controls {
+                display: none; /* Hide on regular computers with keyboards */
+            }
+        }
+
+        /* Screens */
+        .screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 20;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: rgba(7, 10, 22, 0.92);
+            color: #fff;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            font-style: italic;
+            color: #ff0055;
+            text-shadow: 0 0 20px #ff0055;
+            letter-spacing: 2px;
+        }
+
+        .sub-brand {
+            font-size: 1.2rem;
+            color: #00ffcc;
+            margin-bottom: 25px;
+            letter-spacing: 5px;
+            text-transform: uppercase;
+        }
+
+        p {
+            font-size: 1rem;
+            margin-bottom: 30px;
+            color: #a0a0c0;
+            max-width: 80%;
+            line-height: 1.5;
+        }
+
+        .btn {
+            background: transparent;
+            color: #00ffcc;
+            border: 2px solid #00ffcc;
+            padding: 15px 45px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            border-radius: 30px;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.2);
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover, .btn:active {
+            background: #00ffcc;
+            color: #050510;
+            box-shadow: 0 0 25px #00ffcc;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        kbd {
+            background: #222;
+            border: 1px solid #55px;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+</head>
+<body>
+
+    <div id="canvas-container"></div>
+    <div id="watermark-overlay">ALEX CAR RACING</div>
+
+    <div id="hud">
+        <div>SCORE: <span id="score-val">0</span></div>
+        <div id="speedometer"><span id="speed-val">0</span> KM/H</div>
+    </div>
+
+    <div id="mobile-controls">
+        <div class="touch-btn" id="btn-left">←</div>
+        <div class="touch-btn" id="btn-right">→</div>
+    </div>
+
+    <div id="start-screen" class="screen">
+        <h1>Alex Car Racing</h1>
+        <div class="sub-brand">F1 Championship</div>
+        <p>Command the premium Red Bull livery #23 vehicle. Avoid drifting out of bounds or colliding into traffic barriers.</p>
+        <button class="btn" onclick="startGame()">Launch Race</button>
+    </div>
+
+    <div id="gameover-screen" class="screen hidden">
+        <h1>Chassis Wrecked</h1>
+        <p>Your vehicle sustained structural failure. Final Score: <span id="final-score">0</span></p>
+        <button class="btn" onclick="restartGame()">Re-enter Track</button>
+    </div>
+
+    <script>
+        let scene, camera, renderer;
+        let playerF1;
+        let obstacles = [];
+        let trackDecorations = [];
+        
+        let isPlaying = false;
+        let score = 0;
+        let currentSpeed = 0;
+        const topVelocity = 2.5;
+        const trackWidth = 14;
+        
+        // Dynamic Input Logic
+        const inputState = { Left: false, Right: false };
+        
+        const scoreVal = document.getElementById('score-val');
+        const speedVal = document.getElementById('speed-val');
+        const startScreen = document.getElementById('start-screen');
+        const gameoverScreen = document.getElementById('gameover-screen');
+        const finalScore = document.getElementById('final-score');
+
+        // Setup Desktop Handlers
+        window.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') inputState.Left = true;
+            if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') inputState.Right = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') inputState.Left = false;
+            if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') inputState.Right = false;
+        });
+
+        // Setup Mobile Touch Handlers
+        const hookTouch = (elementId, directionProp) => {
+            const btn = document.getElementById(elementId);
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); inputState[directionProp] = true; });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); inputState[directionProp] = false; });
+        };
+        hookTouch('btn-left', 'Left');
+        hookTouch('btn-right', 'Right');
+
+        function initEngine() {
+            const container = document.getElementById('canvas-container');
+            
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050510, 0.015);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2)); // Dynamic responsive visual throttling
+            renderer.shadowMap.enabled = true;
+            container.appendChild(renderer.domElement);
+
+            // High Fidelity Studio Lighting
+            const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+            scene.add(ambient);
+
+            const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+            sun.position.set(15, 30, 10);
+            sun.castShadow = true;
+            sun.shadow.mapSize.width = 1048;
+            sun.shadow.mapSize.height = 1048;
+            scene.add(sun);
+
+            // Construct Circuit Surface
+            buildTrackFloor();
+
+            // Construct High Resolution Red Bull F1 Car Mesh
+            playerF1 = assembleRedBullF1Car();
+            scene.add(playerF1);
+
+            // Anchor Camera Rig Angle
+            camera.position.set(0, 3.8, -6.5);
+            camera.lookAt(new THREE.Vector3(0, 1, 3));
+
+            window.addEventListener('resize', handleViewportResize);
+        }
+
+        function buildTrackFloor() {
+            // Asphalts
+            const roadGeo = new THREE.PlaneGeometry(trackWidth, 1000);
+            const roadMat = new THREE.MeshStandardMaterial({ color: 0x111218, roughness: 0.85 });
+            const road = new THREE.Mesh(roadGeo, roadMat);
+            road.rotation.x = -Math.PI / 2;
+            road.receiveShadow = true;
+            scene.add(road);
+
+            // Neon Curbs & Boundaries
+            for (let z = -200; z < 500; z += 40) {
+                const curbL = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.2, 20), new THREE.MeshStandardMaterial({color: 0xff0055, emissive: 0xff0033}));
+                curbL.position.set(-trackWidth/2, 0.1, z);
+                const curbR = curbL.clone();
+                curbR.position.x = trackWidth/2;
+                scene.add(curbL, curbR);
+                trackDecorations.push(curbL, curbR);
+            }
+        }
+
+        function assembleRedBullF1Car() {
+            const f1Group = new THREE.Group();
+
+            // Procedural Canvas Texturing System for HD Branding
+            const canvasTex = document.createElement('canvas');
+            canvasTex.width = 512; canvasTex.height = 512;
+            const ctx = canvasTex.getContext('2d');
+            ctx.fillStyle = '#0B142C'; // Red Bull Navy Blue Matte base
+            ctx.fillRect(0,0,512,512);
+            ctx.fillStyle = '#FFCC00'; // Yellow nose stripes
+            ctx.fillRect(180, 0, 150, 120);
+            ctx.fillStyle = '#FFFFFF';
+            ctx.font = 'bold 50px sans-serif';
+            ctx.fillText('ALEX', 185, 320); // Render custom branding
+            ctx.font = 'bold 75px sans-serif';
+            ctx.fillStyle = '#FF0044';
+            ctx.fillText('23', 210, 440);
+
+            const livery = new THREE.CanvasTexture(canvasTex);
+            const bodyMat = new THREE.MeshStandardMaterial({ map: livery, roughness: 0.6, metalness: 0.15 });
+            const carbonMat = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.9 });
+            const neonWingMat = new THREE.MeshStandardMaterial({ color: 0xff0055, roughness: 0.4 });
+
+            // Core aerodynamic aerodynamic monocoque chassis structure
+            const cockpitGeom = new THREE.BoxGeometry(1.4, 0.55, 4.6);
+            const pos = cockpitGeom.attributes.position;
+            for(let i=0; i<pos.count; i++) {
+                if(pos.getZ(i) > 0.8) {
+                    pos.setX(i, pos.getX(i) * 0.45); // Extrude aerodynamics
+                    pos.setY(i, pos.getY(i) * 0.35);
+                }
+            }
+            cockpitGeom.computeVertexNormals();
+            const body = new THREE.Mesh(cockpitGeom, bodyMat);
+            body.position.y = 0.45;
+            f1Group.add(body);
+
+            // Front Spoiler Wing setup
+            const frontWing = new THREE.Mesh(new THREE.BoxGeometry(3.0, 0.1, 0.5), neonWingMat);
+            frontWing.position.set(0, 0.2, 2.3);
+            f1Group.add(frontWing);
+
+            // Rear DRS wing element assembly
+            const rearWingPlate = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.1, 0.7), neonWingMat);
+            rearWingPlate.position.set(0, 1.1, -2.1);
+            const leftStrut = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.8, 0.7), carbonMat);
+            leftStrut.position.set(-0.95, 0.7, -2.1);
+            const rightStrut = leftStrut.clone(); rightStrut.position.x = 0.95;
+            f1Group.add(rearWingPlate, leftStrut, rightStrut);
+
+            // Halo Driver Safety Ring
+            const halo = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.06, 8, 20), carbonMat);
+            halo.rotation.x = Math.PI/2;
+            halo.position.set(0, 0.75, 0.1);
+            f1Group.add(halo);
+
+            // Racing Tyres (Pirelli Profile Slicks)
+            const wheelGeo = new THREE.CylinderGeometry(0.5, 0.5, 0.55, 24);
+            wheelGeo.rotateZ(Math.PI/2);
+            const layout = [
+                {x: -1.05, z: 1.4}, {x: 1.05, z: 1.4}, // Front Axles
+                {x: -1.1, z: -1.4}, {x: 1.1, z: -1.4}  // Rear Axles
+            ];
+            layout.forEach(coord => {
+                const tire = new THREE.Mesh(wheelGeo, carbonMat);
+                tire.position.set(coord.x, 0.5, coord.z);
+                f1Group.add(tire);
+            });
+
+            f1Group.position.set(0, 0, 0);
+            return f1Group;
+        }
+
+        function createObstacle() {
+            const laneX = (Math.random() * (trackWidth - 3)) - (trackWidth/2 - 1.5);
+            const blockGeo = new THREE.BoxGeometry(2.2, 1.2, 2.2);
+            const blockMat = new THREE.MeshStandardMaterial({ color: 0x00ffcc, roughness: 0.3, emissive: 0x003322 });
+            const box = new THREE.Mesh(blockGeo, blockMat);
+            box.position.set(laneX, 0.6, 120);
+            box.castShadow = true;
+            scene.add(box);
+            obstacles.push(box);
+        }
+
+        function handleViewportResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function checkImpact(box1, box2) {
+            // Refined operational bounding values for F1 safety models
+            const dX = Math.abs(box1.position.x - box2.position.x);
+            const dZ = Math.abs(box1.position.z - box2.position.z);
+            return dX < 1.7 && dZ < 3.2;
+        }
+
+        function triggerCrashLoop() {
+            isPlaying = false;
+            finalScore.innerText = score;
+            gameoverScreen.classList.remove('hidden');
+        }
+
+        function loop() {
+            if (!isPlaying) return;
+            requestAnimationFrame(loop);
+
+            // Handle acceleration velocity models
+            if (currentSpeed < topVelocity) currentSpeed += 0.005;
+
+            // Compute physics ticks
+            if (inputState.Left && playerF1.position.x > -(trackWidth/2 - 1)) playerF1.position.x -= 0.12;
+            if (inputState.Right && playerF1.position.x < (trackWidth/2 - 1)) playerF1.position.x += 0.12;
+
+            // Dynamic leaning suspension effect
+            if(inputState.Left) playerF1.rotation.z = 0.06;
+            else if(inputState.Right) playerF1.rotation.z = -0.06;
+            else playerF1.rotation.z = 0;
+
+            // Generate hurdles
+            if (Math.random() < 0.015) createObstacle();
+
+            // Track Decoration loop cycles
+            trackDecorations.forEach(item => {
+                item.position.z -= currentSpeed;
+                if(item.position.z < -40) item.position.z += 500;
+            });
+
+            // Obstacle logic pipeline loops
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].position.z -= currentSpeed;
+
+                if (checkImpact(playerF1, obstacles[i])) {
+                    triggerCrashLoop();
+                    return;
+                }
+
+                if (obstacles[i].position.z < -10) {
+                    scene.remove(obstacles[i]);
+                    obstacles.splice(i, 1);
+                    score += 10;
+                    scoreVal.innerText = score;
+                }
+            }
+
+            // Update UI meters
+            speedVal.innerText = Math.round(currentSpeed * 130);
+
+            renderer.render(scene, camera);
+        }
+
+        function startGame() {
+            startScreen.classList.add('hidden');
+            isPlaying = true;
+            loop();
+        }
+
+        function restartGame() {
+            gameoverScreen.classList.add('hidden');
+            obstacles.forEach(obj => scene.remove(obj));
+            obstacles = [];
+            score = 0;
+            currentSpeed = 0;
+            playerF1.position.set(0, 0, 0);
+            scoreVal.innerText = "0";
+            isPlaying = true;
+            loop();
+        }
+
+        // Boot-up Execution Call
+        initEngine();
+        renderer.render(scene, camera); // initial static view draw
+    </script>
+</body>
+</html>
